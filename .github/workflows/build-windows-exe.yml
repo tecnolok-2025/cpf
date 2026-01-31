@@ -6,31 +6,29 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-      - name: Descargar código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Preparar Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Instalar dependencias
+      - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Crear ejecutable
+      - name: Build EXE
+        shell: pwsh
         run: |
-          pyinstaller --onefile --name CPF ^
-            --collect-all streamlit ^
-            --collect-all scikit-learn ^
-            --collect-all numpy ^
-            --collect-all pandas ^
-            launcher.py
+          pyinstaller --noconfirm --onefile --name CPF --collect-all streamlit --collect-all scikit-learn --collect-all numpy --collect-all pandas launcher.py
 
-      - name: Subir EXE
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: CPF-Windows-EXE
