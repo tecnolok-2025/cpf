@@ -1,34 +1,47 @@
-#define MyAppName "CPF"
-#define MyAppVersion "1.0"
-#define MyAppPublisher "CPF"
-#define MyAppExeName "CPF.exe"
+; =========================
+; CPF - Instalador sin admin (per-user)
+; =========================
 
 [Setup]
-AppId={{9A6B6A7C-8F6E-4D9B-9C6B-1F2E5D7A0C11}
-AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
+AppId={{9B2F3D1C-3C3E-4B2E-9D77-CPF000000001}}
+AppName=CPF
+AppVersion=1.0.0
+AppPublisher=Tecnolok
+DefaultDirName={localappdata}\CPF
+DefaultGroupName=CPF
 DisableProgramGroupPage=yes
-OutputBaseFilename=CPF-Instalador
+
+; CLAVE: evita UAC / admin
+PrivilegesRequired=lowest
+
+; Recomendado
 Compression=lzma
 SolidCompression=yes
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 
+; Salida del instalador (esto debe coincidir con tu workflow)
+OutputDir=Output
+OutputBaseFilename=CPF-Instalador
+
+; Opcional: si no querés que se pueda elegir carpeta
+; DisableDirPage=yes
+
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "Crear icono en el Escritorio"; GroupDescription: "Accesos directos:"; Flags: unchecked
-
 [Files]
-Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Toma el exe que genera PyInstaller en el workflow
+Source: "dist\CPF.exe"; DestDir: "{app}"; Flags: ignoreversion
+; (Opcional) Si luego agregás ícono:
+; Source: "assets\cpf.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{userprograms}\CPF"; Filename: "{app}\CPF.exe"
+Name: "{userdesktop}\CPF"; Filename: "{app}\CPF.exe"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Crear ícono en el Escritorio"; GroupDescription: "Accesos directos:"; Flags: checkedonce
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Ejecutar {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\CPF.exe"; Description: "Abrir CPF ahora"; Flags: nowait postinstall skipifsilent
