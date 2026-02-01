@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Windows EXE + Installer
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -21,12 +21,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller streamlit scikit-learn pandas numpy
+          pip install pyinstaller
 
-      - name: Build CPF.exe
+      - name: Build CPF.exe (PyInstaller)
         shell: cmd
         run: |
           pyinstaller --noconfirm --onefile --windowed --name CPF ^
+            --collect-all streamlit ^
+            --collect-all sklearn ^
+            --collect-all numpy ^
+            --collect-all pandas ^
             --add-data "app.py;." ^
             --add-data "auth.py;." ^
             --add-data "db.py;." ^
@@ -34,7 +38,7 @@ jobs:
             --add-data "matching.py;." ^
             launcher.py
 
-      - name: Upload EXE
+      - name: Upload CPF.exe
         uses: actions/upload-artifact@v4
         with:
           name: CPF-Windows-EXE
