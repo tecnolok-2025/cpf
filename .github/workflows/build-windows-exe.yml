@@ -8,21 +8,22 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
+      - name: Descargar código
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Preparar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
       - name: Build CPF.exe
+        shell: cmd
         run: |
           pyinstaller --noconfirm --onefile --windowed --name CPF ^
             --collect-all streamlit ^
@@ -36,7 +37,7 @@ jobs:
             --add-data "services.py;." ^
             launcher.py
 
-      - name: Upload CPF.exe
+      - name: Subir CPF.exe
         uses: actions/upload-artifact@v4
         with:
           name: CPF-Windows-EXE
