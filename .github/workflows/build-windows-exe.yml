@@ -1,4 +1,4 @@
-name: Build Windows EXE + Installer
+name: Build Windows EXE
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,18 +22,18 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build CPF.exe (PyInstaller)
+      - name: Build CPF.exe
         run: |
-          pyinstaller --noconfirm --onefile --windowed --name CPF `
-            --collect-all streamlit `
-            --collect-all sklearn `
-            --collect-all numpy `
-            --collect-all pandas `
-            --add-data "app.py;." `
-            --add-data "auth.py;." `
-            --add-data "db.py;." `
-            --add-data "matching.py;." `
-            --add-data "services.py;." `
+          pyinstaller --noconfirm --onefile --windowed --name CPF ^
+            --collect-all streamlit ^
+            --collect-all sklearn ^
+            --collect-all numpy ^
+            --collect-all pandas ^
+            --add-data "app.py;." ^
+            --add-data "auth.py;." ^
+            --add-data "db.py;." ^
+            --add-data "matching.py;." ^
+            --add-data "services.py;." ^
             launcher.py
 
       - name: Upload CPF.exe
