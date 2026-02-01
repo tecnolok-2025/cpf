@@ -1,13 +1,27 @@
+import os
 import sqlite3
 from pathlib import Path
 from datetime import datetime
 
-DB_PATH = Path(__file__).with_name("cpf.db")
+APP_NAME = "CPF"
+
+
+def _data_dir() -> Path:
+    # Directorio escribible (evita fallas cuando corre como .exe onefile)
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    d = base / APP_NAME
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+DB_PATH = _data_dir() / "cpf.db"
+
 
 def conn():
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
     return c
+
 
 def init_db():
     c = conn()
@@ -81,8 +95,10 @@ def init_db():
     c.commit()
     c.close()
 
+
 def now_iso():
     return datetime.utcnow().isoformat(timespec="seconds")
+
 
 def log(actor_user_id, action, details=""):
     c = conn()
