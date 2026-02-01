@@ -2,94 +2,91 @@ import os
 import sys
 import time
 import socket
-import threading
-import webbrowser
+import subprocess
 from pathlib import Path
+import webbrowser
 
-
-APP_NAME = "CPF"
 HOST = "127.0.0.1"
 PORT = 8501
+WAIT_SECONDS = 120
 
+def log_path():
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+    folder = base / "CPF"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / "cpf.log"
 
-def get_app_dir() -> Path:
-    # Carpeta del programa (instalado) o del bundle (PyInstaller)
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return Path(sys._MEIPASS)  # pylint: disable=no-member
-    return Path(__file__).resolve().parent
+def log(msg: str):
+    with open(log_path(), "a", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {msg}\n")
 
-
-def get_log_path() -> Path:
-    base = Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
-    log_dir = base / APP_NAME
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir / "cpf.log"
-
-
-def wait_port(host: str, port: int, timeout_s: int = 60) -> bool:
-    end = time.time() + timeout_s
-    while time.time() < end:
-        try:
-            with socket.create_connection((host, port), timeout=1):
-                return True
-        except OSError:
-            time.sleep(0.25)
-    return False
-
-
-def run_streamlit(app_py: str, log_file: Path):
-    # Ejecuta Streamlit programáticamente (mejor para PyInstaller)
+def port_open() -> bool:
     try:
-        from streamlit.web import bootstrap
+        with socket.create_connection((HOST, PORT), timeout=0.5):
+            return True
+    except Exception:
+        return False
 
-        # Redirigimos salida a log
-        sys.stdout = open(log_file, "a", encoding="utf-8", buffering=1)
-        sys.stderr = open(log_file, "a", encoding="utf-8", buffering=1)
-
-        args = [
-            "streamlit",
-            "run",
-            app_py,
-            "--server.address", HOST,
-            "--server.port", str(PORT),
-            "--server.headless", "true",
-            "--browser.gatherUsageStats", "false",
-        ]
-        bootstrap.run(args[2], False, args, flag_options={})
-    except Exception as e:
-        try:
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"\n[LAUNCHER] ERROR al iniciar Streamlit: {e}\n")
-        finally:
-            raise
-
+def workdir() -> str:
+    # En PyInstaller, _MEIPASS apunta a la carpeta temporal donde se extrae todo
+    if hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
 
 def main():
-    app_dir = get_app_dir()
-    log_path = get_log_path()
-    app_path = app_dir / "app.py"
+    log("=== INICIO CPF ===")
 
-    # Si por algún motivo no está, lo dejamos claro en el log
-    if not app_path.exists():
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[LAUNCHER] No encuentro app.py en: {app_path}\n")
-        raise RuntimeError(f"No encuentro app.py en {app_path}")
+    wd = workdir()
+    app = os.path.join(wd, "app.py")
 
-    # Arrancar Streamlit en un thread
-    t = threading.Thread(target=run_streamlit, args=(str(app_path), log_path), daemon=True)
-    t.start()
+    if not os.path.exists(app):
+        log("ERROR: app.py no encontrado")
+        raise RuntimeError("No se encontró app.py")
 
-    # Esperar a que levante el puerto y recién ahí abrir el navegador
-    if wait_port(HOST, PORT, timeout_s=90):
-        webbrowser.open(f"http://{HOST}:{PORT}")
-        # Mantener vivo el proceso principal
-        while True:
-            time.sleep(1)
-    else:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write("[LAUNCHER] Streamlit no levantó (no abrió el puerto). Revisar este log.\n")
-        raise RuntimeError("Streamlit no levantó. Ver cpf.log")
+    # IMPORTANTE:
+    # Forzamos developmentMode=false para evitar el error:
+    # "server.port does not work when global.developmentMode is true"
+    cmd = [
+        sys.executable, "-m", "streamlit", "run", app,
+        "--global.developmentMode=false",
+        "--server.headless=true",
+        f"--server.address={HOST}",
+        f"--server.port={PORT}",
+        "--browser.gatherUsageStats=false",
+    ]
 
+    log("Ejecutando Streamlit: " + " ".join(cmd))
+
+    log_file = open(log_path(), "a", encoding="utf-8")
+
+    proc = subprocess.Popen(
+        cmd,
+        cwd=wd,
+        stdout=log_file,
+        stderr=log_file,
+        stdin=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+
+    start = time.time()
+    while time.time() - start < WAIT_SECONDS:
+        # Si el proceso murió, cortamos y dejamos log
+        if proc.poll() is not None:
+            log("ERROR: Streamlit terminó antes de levantar. Ver cpf.log")
+            raise RuntimeError("Streamlit terminó antes de levantar. Revisá cpf.log")
+
+        if port_open():
+            url = f"http://{HOST}:{PORT}"
+            log("Servidor OK → " + url)
+            webbrowser.open(url)
+            proc.wait()
+            return
+
+        time.sleep(0.5)
+
+    log("ERROR: Streamlit no levantó en el tiempo de espera")
+    proc.terminate()
+    raise RuntimeError("Streamlit no levantó. Revisá el log en %LOCALAPPDATA%\\CPF\\cpf.log")
 
 if __name__ == "__main__":
     main()
