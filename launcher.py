@@ -6,100 +6,76 @@ import subprocess
 from pathlib import Path
 import webbrowser
 
-APP_HOST = "127.0.0.1"
-APP_PORT = 8501
-WAIT_SECONDS = 120  # aumentamos la espera
+HOST = "127.0.0.1"
+PORT = 8501
+WAIT_SECONDS = 120
 
-def appdata_log_path() -> Path:
-    base = Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
+def log_path():
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
     folder = base / "CPF"
     folder.mkdir(parents=True, exist_ok=True)
     return folder / "cpf.log"
 
-def log(msg: str):
-    p = appdata_log_path()
-    ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    with p.open("a", encoding="utf-8") as f:
-        f.write(f"[{ts}] {msg}\n")
+def log(msg):
+    with open(log_path(), "a", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {msg}\n")
 
-def port_open(host: str, port: int) -> bool:
+def port_open():
     try:
-        with socket.create_connection((host, port), timeout=0.5):
+        with socket.create_connection((HOST, PORT), timeout=0.5):
             return True
-    except OSError:
+    except:
         return False
 
-def get_workdir() -> str:
-    # En PyInstaller, los archivos pueden estar en _MEIPASS (onefile) o en carpeta (onedir)
+def workdir():
     if hasattr(sys, "_MEIPASS"):
-        return sys._MEIPASS  # type: ignore
-    return str(Path(__file__).resolve().parent)
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
 
 def main():
-    # limpiar log al inicio (opcional)
-    log("========== INICIO CPF ==========")
+    log("=== INICIO CPF ===")
 
-    workdir = get_workdir()
-    log(f"Workdir: {workdir}")
+    wd = workdir()
+    app = os.path.join(wd, "app.py")
 
-    # Ruta al app.py dentro del paquete
-    app_path = Path(workdir) / "app.py"
-    if not app_path.exists():
-        log(f"ERROR: No existe app.py en {app_path}")
-        raise RuntimeError(f"No se encontró app.py en {app_path}")
+    if not os.path.exists(app):
+        log("ERROR: app.py no encontrado")
+        raise RuntimeError("No se encontró app.py")
 
-    # Ejecutamos streamlit con el mismo python embebido
     cmd = [
-        sys.executable, "-m", "streamlit", "run", str(app_path),
+        sys.executable, "-m", "streamlit", "run", app,
         "--server.headless=true",
-        f"--server.address={APP_HOST}",
-        f"--server.port={APP_PORT}",
-        "--browser.gatherUsageStats=false",
+        f"--server.address={HOST}",
+        f"--server.port={PORT}",
+        "--browser.gatherUsageStats=false"
     ]
 
-    log(f"Ejecutando: {' '.join(cmd)}")
+    log("Ejecutando Streamlit")
 
-    # Abrimos log en modo append para capturar salida
-    log_file = appdata_log_path().open("a", encoding="utf-8")
+    log_file = open(log_path(), "a", encoding="utf-8")
 
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=workdir,
-            stdout=log_file,
-            stderr=log_file,
-            stdin=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-        )
-    except Exception as e:
-        log(f"ERROR al iniciar streamlit: {e}")
-        raise
+    proc = subprocess.Popen(
+        cmd,
+        cwd=wd,
+        stdout=log_file,
+        stderr=log_file,
+        stdin=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    )
 
-    # Esperar a que el puerto esté activo
     start = time.time()
     while time.time() - start < WAIT_SECONDS:
-        if port_open(APP_HOST, APP_PORT):
-            url = f"http://{APP_HOST}:{APP_PORT}"
-            log(f"Servidor OK en {url}")
+        if port_open():
+            url = f"http://{HOST}:{PORT}"
+            log("Servidor OK → " + url)
             webbrowser.open(url)
-            break
+            proc.wait()
+            return
         time.sleep(0.5)
-    else:
-        log("ERROR: Streamlit no levantó a tiempo. Ver logs anteriores para detalle.")
-        # matar el proceso si quedó vivo
-        try:
-            proc.terminate()
-        except Exception:
-            pass
-        raise RuntimeError(
-            f"No levantó el servidor en {APP_HOST}:{APP_PORT}. Revisá el log en: {appdata_log_path()}"
-        )
 
-    # Mantener vivo el proceso
-    try:
-        proc.wait()
-    finally:
-        log("========== FIN CPF ==========")
+    log("ERROR: Streamlit no levantó")
+    proc.terminate()
+    raise RuntimeError("Streamlit no levantó. Ver cpf.log")
 
 if __name__ == "__main__":
     main()
